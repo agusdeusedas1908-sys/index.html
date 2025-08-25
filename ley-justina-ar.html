@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ley Justina AR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; background:#111; color:white; text-align:center; }
+    #infoBox {
+      position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+      background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; max-width:90%;
+      display:none; text-align:left;
+    }
+    #enter-ar {
+      position:absolute; top:20px; left:50%; transform:translateX(-50%);
+      padding:12px 20px; background:#00b894; color:white; border:none;
+      border-radius:8px; font-size:16px; cursor:pointer;
+    }
+  </style>
+</head>
+<body>
+  <button id="enter-ar">ENTRAR EN AR</button>
+  <div id="infoBox"></div>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/ARButton.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/XRHitTest.js"></script>
+  <script>
+    let scene, camera, renderer, controller;
+    let reticle, selectedOrgan;
+    const organs = {
+      "corazon": { color:0xff4d4d, info:"El corazón bombea la sangre y puede ser trasplantado. La Ley Justina establece que todos somos donantes salvo que expresemos lo contrario." },
+      "riñon": { color:0x4dd0e1, info:"Los riñones filtran la sangre. Gracias a la Ley Justina, muchas personas en lista de espera acceden a un trasplante vital." },
+      "higado": { color:0xffb347, info:"El hígado cumple funciones esenciales. Un trasplante puede salvar la vida de quienes sufren enfermedades hepáticas." },
+      "pulmon": { color:0x81c784, info:"Los pulmones permiten respirar. La Ley Justina facilita la disponibilidad de órganos para pacientes con enfermedades respiratorias graves." },
+      "cornea": { color:0xcccccc, info:"Las córneas devuelven la visión. La Ley Justina garantiza más posibilidades de trasplante para recuperar la vista." }
+    };
+
+    document.getElementById('enter-ar').addEventListener('click', () => {
+      init();
+      document.getElementById('enter-ar').style.display = 'none';
+    });
+
+    function init(){
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 20);
+      renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures:['hit-test'] }));
+
+      const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+      scene.add(light);
+
+      reticle = new THREE.Mesh(
+        new THREE.RingGeometry(0.1,0.11,32).rotateX(-Math.PI/2),
+        new THREE.MeshBasicMaterial({color:0x00ff00})
+      );
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add(reticle);
+
+      controller = renderer.xr.getController(0);
+      controller.addEventListener('select', onSelect);
+      scene.add(controller);
+
+      renderer.setAnimationLoop(render);
+    }
+
+    function onSelect(){
+      if (reticle.visible){
+        if (selectedOrgan) scene.remove(selectedOrgan);
+        const keys = Object.keys(organs);
+        const organKey = keys[Math.floor(Math.random()*keys.length)];
+        const organData = organs[organKey];
+        const geometry = new THREE.SphereGeometry(0.1,32,32);
+        const material = new THREE.MeshStandardMaterial({color: organData.color});
+        const organ = new THREE.Mesh(geometry, material);
+        organ.position.setFromMatrixPosition(reticle.matrix);
+        organ.userData = organData;
+        scene.add(organ);
+        selectedOrgan = organ;
+
+        organ.callback = () => showInfo(organData.info);
+        document.body.addEventListener('click', (e)=>{
+          const raycaster = new THREE.Raycaster();
+          const mouse = new THREE.Vector2();
+          mouse.x = (e.clientX / window.innerWidth)*2 -1;
+          mouse.y = -(e.clientY / window.innerHeight)*2 +1;
+          raycaster.setFromCamera(mouse, camera);
+          const intersects = raycaster.intersectObjects([organ]);
+          if(intersects.length > 0){ organ.callback(); }
+        });
+      }
+    }
+
+    function showInfo(text){
+      const box = document.getElementById('infoBox');
+      box.innerText = text;
+      box.style.display = 'block';
+    }
+
+    function render(timestamp, frame){
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>
